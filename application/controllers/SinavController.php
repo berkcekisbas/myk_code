@@ -8,8 +8,13 @@ class SinavController extends CI_Controller {
         parent::__construct();
         $this->load->library("Pdf");
         $this->load->helper('toolchain_helper');
+        $this->load->library("sinavreport");
+    }
 
 
+    public function yazdir($sinav_id,$basvuru_id)
+    {
+      $this->sinavreport->aday_sorular();
     }
 
     public function yeni_sinav()
@@ -30,7 +35,7 @@ class SinavController extends CI_Controller {
                     'tip' => $this->input->post('tip'),
                     'yeterlilik_id' => $this->input->post('yeterlilik'),
                     'sinavid' => $this->input->post('sinavid'),
-                    'sinavtarihi' => date("Y-m-d",strtotime($this->input->post('sinavtarihi'))),
+                    'sinavtarihi' => date("Y-m-d",strtotime(str_replace("/","-",$this->input->post('sinavtarihi')))),
                     'sinavsaati' => $this->input->post('sinavsaati'),
                     'sinavyeri_id' => $this->input->post('sinavyeri'),
                     'gozetmen' => json_encode($this->input->post('gozetmen')),
@@ -99,95 +104,151 @@ class SinavController extends CI_Controller {
 
     public function detay_teorik($id)
     {
+        
 
-        $this->_soruhazirla();
-        $this->load->view('admin_layout',array('view' => 'sinav/teorik_detay','data' => array('baslik' =>  'DETAY')));
+        $this->db->select('*,sinavyerleri.ad AS sinavyeri_ad,sinavlar.id AS sinav_id');
+        $this->db->from('sinavlar');
+        $this->db->join('sinavyerleri', 'sinavlar.sinavyeri_id = sinavyerleri.id');
+
+        $this->db->where('tip', "T");
+        $this->db->where('sinavlar.id', $id);
+        $sinav = $this->db->get()->row();
+
+        $tarih = date("d-m-Y",strtotime($sinav->sinavtarihi));
+        $degerlendirici = komisyonlar($sinav->degerlendirici);
+        $gozetmen = komisyonlar($sinav->gozetmen);
+       
+        $i = 1;
+
+        foreach (json_decode($sinav->basvuru) as $id) {
+
+            $aday = $this->db->get_where('basvuru', array('id' => $id))->row();
+
+            $adaylar[] = array('id' => $aday->id, 'adsoyad' => $aday->adsoyad, 'tckimlik' => $aday->tckimlik);
+            
+            $i++;
+        }
+
+        $data['baslik'] = "SINAV DETAYI";
+        $data['sinav'] = $sinav;
+        $data['tarih'] = $tarih;
+        $data['gozetmen'] = $gozetmen;
+        $data['degerlendirici'] = $degerlendirici;
+        $data['adaylar'] = $adaylar;
+
+
+        $this->load->view('admin_layout',array('view' => 'sinav/teorik_detay','data' => $data));
     }
 
-    public function _soruhazirla()
+    public function _sorucek($limit,$birim,$basvuru_id,$sinav_id,$sira)
     {
 
-        /*
-        $basvuruid = 1;
 
+                     $this->db->limit($limit);
+                     $this->db->order_by($limit,'RANDOM');
+                     $this->db->where('birim', $birim);
+                     $this->db->group_by("basarimolcutu");
+            $query = $this->db->get('teoriksorular');
+            $sorular = $query->result();
 
-        $basvuru = $this->db->get_where('basvuru', array('id' => $basvuruid))->row();
+            
+            foreach ($sorular as $soru) {
 
-
-        $yeterlilik = $this->db->get_where('yeterlilikler', array('id' => $basvuru->yeterlilikid))->row();
-
-
-        $sorusayisi = json_decode($yeterlilik->sorusablon,true);
-
-        foreach (json_decode($basvuru->birimler) as $birim) {
-
-         
-
-        $basarimolcut = $this->db->get_where('basarimolcutleri', array('birim_id' => $birim))->result();
-        $sorular = $this->db->get_where('teoriksorular', array('birim' => $birim))->result();
-
-
-          echo count($basarimolcut)."<br>";
-          echo "--".count($sorular)."<br>";
+              $s1 = $this->db->order_by('id','RANDOM')->get_where('teoriksorular', array('birim' => $birim,'basarimolcutu' => $soru->basarimolcutu))->row();
 
 
 
-         echo "---".$birim." soru sayısı =  ".$sorusayisi['sorusayisi'][$birim][0]."<br>";
+              $this->db->insert('teorik_sinav_sorular', array('sira' => $sira,'birim' => $birim,'basvuru_id' => $basvuru_id,'sinav_id' => $sinav_id,'basarimolcut_id' => $s1->basarimolcutu,'soru_id' => $s1->id));
 
-        }
+              $sira++;
+            }
+
+      return $query->num_rows();
+
+
+
+
+
+
+    }
+
+    public function _sorucek_kontrol($sinav_id,$basvuru_id)
+    {
+               $this->db->where('basvuru_id',$basvuru_id);
+               $this->db->where('sinav_id', $sinav_id);
+      $query = $this->db->get('teorik_sinav_sorular');
+      $query->result();
+
+      if($query->num_rows() > 0 )
+      {
+        return TRUE;
+      } else { return FALSE;}
+    }
+
+    public function _teorik_soru_olustur($sinav_id,$basvuru_id)
+    {
+       /*
+          Teorik soru için gerekli sql cümlesi.
+          SELECT * FROM teoriksorular WHERE birim = 10 GROUP BY basarimolcutu ORDER BY RAND() LIMIT 3
         */
 
-        //
+          /*
+            1 - başvuru bigileri.
+            2 - başvuru yapanın yeterlilik bilgileri
+            3 - başvuru yapanın yeterliliğinin soru sayıları.
+          */
+          // önce başvuru sahibi bilgileri alınsın.
 
-        $basvuruid = 1;
-        $yeterlilikid = 3;
-
-        $basvuru = $this->db->get_where('basvuru', array('id' => $basvuruid))->row();
-
-        $yeterlilik = $this->db->get_where('yeterlilikler', array('id' => $yeterlilikid))->row();
-
-        $sorusayisi = json_decode($yeterlilik->sorusablon,true);
-
-        foreach (json_decode($basvuru->birimler) as $birim) 
-        {
+            // soruçek kontro lile kontrol et
 
 
-            $this->db->where('tip', "T");
-                    $this->db->where('birim_id', $birim);
-            $query= $this->db->get('basarimolcutleri');
-            $basarimolcutleri = $query->result();
-
-            $sorular = $this->db->get_where('teoriksorular', array('birim' => $birim))->result();
+          $basvuru    = $this->db->get_where('basvuru', array('id' => $basvuru_id))->row();
+          $yeterlilik = $this->db->get_where('yeterlilikler', array('id' => $basvuru->yeterlilikid))->row();
+          $sorusablon = json_decode($yeterlilik->sorusablon,true);
 
 
+          //print_r($sorusablon);
 
+          //echo $sorusablon['sorusayisi'][10][0];
 
-            //$basarimolcutleri = $this->db->get_where('basarimolcutleri', array('birim_id' => $birim,'tip' => 'T'))->row();
+          foreach (json_decode($basvuru->birimler,true) as $birim)
+          {
+            $sorusayisi = $sorusablon['sorusayisi'][$birim][0];
 
-           // echo count($basarimolcutleri)."<br>";
-
-            echo "Başarım Ölçütü Sayısı : ".count($basarimolcutleri)." Sorulacak Soru Sayısı : ".$sorusayisi['sorusayisi'][$birim][0]."/".$birim."/"." Soru Sayı : ".count($sorular)."<br>";
-
-    
-          for ($i=1; $i < $sorusayisi['sorusayisi'][$birim][0]+1; $i++) { 
+            $sorucek = $this->_sorucek($sorusayisi,$birim,$basvuru_id,$sinav_id,1);
 
                     
 
-            
+            if($sorucek < $sorusayisi)
+            {
+                $yenisayi = $sorusayisi - $sorucek;
 
-
-            //echo $birim." => ". count($basarimolcutleri)."<br>";
+                $this->_sorucek($yenisayi,$birim,$basvuru_id,$sinav_id,$sorucek + 1 );
+            }
           }
+    }
 
-          //echo $birim;
-        }
+    public function teorik_soruhazirla($sinav_id,$basvuru_id)
+    {
 
-        
-
-
-
-        
+      if($this->_sorucek_kontrol($sinav_id,$basvuru_id) == FALSE)
+      {
+        $this->_teorik_soru_olustur($sinav_id,$basvuru_id);
       }
+
+      /*
+        Sınav bilgileri
+        Toplam soru sayısı
+        sınav süresi soru sayısı x 1.5 dakika olarka hespala.
+        aday bilgileri.
+      */
+      
+
+      $this->session->set_flashdata('success', 'Sorular Başarıyla Tanımlandı.');
+
+      redirect('sinav/detay/teorik/'.$sinav_id);
+
+    }
 
     public function teorik_adaylistesi($id)
     {

@@ -27,3 +27,14 @@ function komisyonlar($data)
 
     return $result;
 }
+
+function yeterlilik($id)
+{
+    $ci=& get_instance();  
+
+    $query = $ci->db->get_where('yeterlilikler', array('id' => $id))->row();
+
+    return $query->kod." ".$query->ad." SEVİYE ".$query->seviye." REV ".$query->revizyon;
+
+
+}

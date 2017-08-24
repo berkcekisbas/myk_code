@@ -66,6 +66,7 @@ $route['sinav/yeni/teorik/adaylar/(:num)'] = '/SinavController/adaylar/$1';
 $route['sinav/teorik/adaylistesi/(:num)']['get'] = '/SinavController/teorik_adaylistesi/$1';
 $route['sinav/liste/teorik/(:num)'] = '/SinavController/liste_teorik/$1';
 $route['sinav/detay/teorik/(:num)'] = '/SinavController/detay_teorik/$1';
+$route['sinav/detay/teorik/soruhazirla/(:num)/(:num)'] = '/SinavController/teorik_soruhazirla/$1/$2';
 
 
 /****************************** Döküman ************************************/
@@ -73,6 +74,11 @@ $route['dokuman/editor']['get'] = '/DokumanController/editor';
 
 /****************************** User ************************************/
 $route['user/login'] = '/UserController/login';
+
+
+/****************************** Print ************************************/
+$route['sinav/soruform/(:num)/(:num)'] = '/PrintController/soru_form_yazdir/$1/$2';
+$route['sinav/cevapform/(:num)/(:num)/(:num)'] = '/PrintController/cevap_form_yazdir/$1/$2/$3';
 
 
 $route['default_controller'] = 'welcome';
